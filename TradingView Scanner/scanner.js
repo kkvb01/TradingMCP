@@ -56,7 +56,8 @@ const SCANS = {
       { left: 'Perf.W', operation: 'greater', right: 2 },
       { left: 'relative_volume_10d_calc', operation: 'greater', right: 1.5 },
       { left: 'SMA50', operation: 'greater', right: 'SMA200' },
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 1000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 500000 },
+      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
       { left: 'RSI', operation: 'in_range', right: [55, 75] },
       { left: 'close', operation: 'egreater', right: 'SMA50' }
     ],
@@ -65,8 +66,8 @@ const SCANS = {
   pullback: {
     name: 'Pullback to Support',
     filters: [
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 2000000 },
-      { left: 'market_cap_basic', operation: 'greater', right: 5000000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 500000 },
+      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
       { left: 'close', operation: 'greater', right: 10 },
       { left: 'SMA50', operation: 'greater', right: 'SMA200' },
       { left: 'close', operation: 'egreater', right: 'SMA200' },
@@ -81,8 +82,8 @@ const SCANS = {
   oversold: {
     name: 'Oversold Bounce',
     filters: [
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 1000000 },
-      { left: 'market_cap_basic', operation: 'greater', right: 5000000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 500000 },
+      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
       { left: 'close', operation: 'greater', right: 10 },
       { left: 'RSI', operation: 'less', right: 35 },
       { left: 'Perf.W', operation: 'less', right: -4 },
@@ -93,7 +94,7 @@ const SCANS = {
   early_trend: {
     name: 'Early Trend Forming',
     filters: [
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 1000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 500000 },
       { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
       { left: 'close', operation: 'greater', right: 10 },
       { left: 'close', operation: 'egreater', right: 'SMA50' },
