@@ -61,11 +61,15 @@ Config: `cloudflare/claude_desktop_config_snippet.json` shows how to wire up MCP
 
 ## Run Commands
 ```bash
-# Scanner
+# Scanner (from TradingView Scanner/)
 cd "TradingView Scanner"
-node scanner.js          # live API
-node scanner.js --mock   # mock data for testing
-node generate-report.js  # generate HTML from last JSON
+npm start                # live API — loads .env automatically via --env-file
+npm run mock             # mock data for testing (no .env needed)
+npm run report           # regenerate HTML from last scanner-results.json
+
+# .env file required for live upload (gitignored, never commit)
+# SCANNER_WORKER_URL=https://scanner-mcp.tda-guardrails.workers.dev
+# SCANNER_API_KEY=<your key>
 
 # MCP servers (Cloudflare)
 wrangler deploy          # from each cloudflare/* subdirectory

@@ -1,0 +1,10 @@
+{
+  "name": "tradingview-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file=.env scanner.js",
+    "mock": "node scanner.js --mock",
+    "report": "node generate-report.js"
+  }
+}
