@@ -1,0 +1,87 @@
+name: Deploy Cloudflare Workers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/**'
+
+jobs:
+  changes:
+    name: Detect changed workers
+    runs-on: ubuntu-latest
+    outputs:
+      scanner-mcp: ${{ steps.filter.outputs.scanner-mcp }}
+      trade-analyzer: ${{ steps.filter.outputs.trade-analyzer }}
+      trade-journal: ${{ steps.filter.outputs.trade-journal }}
+      guardrail-engine: ${{ steps.filter.outputs.guardrail-engine }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            scanner-mcp:
+              - 'cloudflare/scanner-mcp/**'
+            trade-analyzer:
+              - 'cloudflare/trade-analyzer/**'
+            trade-journal:
+              - 'cloudflare/trade-journal/**'
+            guardrail-engine:
+              - 'cloudflare/guardrail-engine/**'
+
+  scanner-mcp:
+    name: Deploy scanner-mcp
+    needs: changes
+    if: needs.changes.outputs.scanner-mcp == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare/scanner-mcp
+          secrets: |
+            SCANNER_API_KEY
+        env:
+          SCANNER_API_KEY: ${{ secrets.SCANNER_API_KEY }}
+
+  trade-analyzer:
+    name: Deploy trade-analyzer
+    needs: changes
+    if: needs.changes.outputs.trade-analyzer == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare/trade-analyzer
+
+  trade-journal:
+    name: Deploy trade-journal
+    needs: changes
+    if: needs.changes.outputs.trade-journal == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare/trade-journal
+
+  guardrail-engine:
+    name: Deploy guardrail-engine
+    needs: changes
+    if: needs.changes.outputs.guardrail-engine == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare/guardrail-engine
