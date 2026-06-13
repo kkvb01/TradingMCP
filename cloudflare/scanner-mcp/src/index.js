@@ -14,7 +14,8 @@
  *   GET  /health          — status check
  */
 
-const KV_KEY = "latest_scan";
+const KV_KEY        = "latest_scan";
+const KV_REPORT_KEY = "latest_report";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -351,6 +352,43 @@ export default {
       const body = isBatch ? JSON.stringify(results) : JSON.stringify(results[0] ?? "");
       return new Response(body, {
         headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+
+    // ── POST /update-report — scanner.js pushes generated HTML ───────────────
+    if (url.pathname === "/update-report" && request.method === "POST") {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token      = authHeader.replace("Bearer ", "").trim();
+
+      if (!env.SCANNER_API_KEY || token !== env.SCANNER_API_KEY) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { "Content-Type": "application/json", ...CORS },
+        });
+      }
+
+      const html = await request.text();
+      if (!html || !html.includes("<!DOCTYPE")) {
+        return new Response(JSON.stringify({ error: "Invalid HTML" }), {
+          status: 400, headers: { "Content-Type": "application/json", ...CORS },
+        });
+      }
+
+      await env.SCANNER_KV.put(KV_REPORT_KEY, html);
+      return new Response(JSON.stringify({ ok: true, stored_at: new Date().toISOString() }), {
+        headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+
+    // ── GET /report — serve the latest HTML report ────────────────────────────
+    if (url.pathname === "/report" && request.method === "GET") {
+      const html = await env.SCANNER_KV.get(KV_REPORT_KEY);
+      if (!html) {
+        return new Response("<h1>No report yet</h1><p>Run the scanner first.</p>", {
+          status: 404, headers: { "Content-Type": "text/html", ...CORS },
+        });
+      }
+      return new Response(html, {
+        headers: { "Content-Type": "text/html; charset=utf-8", ...CORS },
       });
     }
 

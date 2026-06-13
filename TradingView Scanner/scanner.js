@@ -591,6 +591,34 @@ async function uploadResults(data) {
   }
 }
 
+async function uploadReport() {
+  const { WORKER_URL, API_KEY } = UPLOAD_CONFIG;
+  if (!WORKER_URL) return;
+
+  const fs = require('fs');
+  const htmlPath = require('path').join(__dirname, 'report.html');
+  if (!fs.existsSync(htmlPath)) return;
+
+  try {
+    const html = fs.readFileSync(htmlPath, 'utf8');
+    const res = await fetch(`${WORKER_URL}/update-report`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'text/html',
+        'Authorization': `Bearer ${API_KEY}`,
+      },
+      body: html,
+    });
+    if (res.ok) {
+      console.log(`✓ Report uploaded → ${WORKER_URL}/report`);
+    } else {
+      console.warn(`⚠ Report upload failed: HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.warn(`⚠ Report upload error: ${err.message}`);
+  }
+}
+
 /**
  * Main execution
  */
@@ -629,6 +657,11 @@ async function main() {
     // Upload to scanner-mcp Worker (if configured)
     const savedData = require('./scanner-results.json');
     await uploadResults(savedData);
+
+    // Generate HTML report and upload it
+    const { execFileSync } = require('child_process');
+    execFileSync(process.execPath, [require('path').join(__dirname, 'generate-report.js')], { stdio: 'inherit' });
+    await uploadReport();
 
   } catch (error) {
     console.error('❌ Fatal error:', error);
