@@ -16,8 +16,8 @@ jobs:
       trade-journal: ${{ steps.filter.outputs.trade-journal }}
       guardrail-engine: ${{ steps.filter.outputs.guardrail-engine }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v4.2.2
+      - uses: dorny/paths-filter@v3.0.2
         id: filter
         with:
           filters: |
@@ -36,16 +36,12 @@ jobs:
     if: needs.changes.outputs.scanner-mcp == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: cloudflare/scanner-mcp
-          secrets: |
-            SCANNER_API_KEY
-        env:
-          SCANNER_API_KEY: ${{ secrets.SCANNER_API_KEY }}
 
   trade-analyzer:
     name: Deploy trade-analyzer
@@ -53,7 +49,7 @@ jobs:
     if: needs.changes.outputs.trade-analyzer == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -66,7 +62,7 @@ jobs:
     if: needs.changes.outputs.trade-journal == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -79,7 +75,7 @@ jobs:
     if: needs.changes.outputs.guardrail-engine == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
