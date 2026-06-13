@@ -21,7 +21,7 @@ A personal trading assistant built on MCP (Model Context Protocol) that connects
 | `early_trend` | Early Trend Forming | RSI 50-72, above SMA50, Perf.1M > 7%, rel_vol > 1.1x |
 
 ### Hard Filters (all scans)
-- Price > $5, MCap > $500M, Avg daily vol > 300K
+- Price > $5, MCap > $2B, Avg daily vol > 1M
 - Price above SMA200 required (except oversold scan)
 - ADRs flagged with [ADR] tag
 

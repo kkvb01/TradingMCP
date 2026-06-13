@@ -54,8 +54,8 @@ const SCANS = {
     name: 'Momentum Breakout',
     filters: [
       { left: 'close', operation: 'greater', right: 5 },
-      { left: 'market_cap_basic', operation: 'greater', right: 500000000 },
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 300000 },
+      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 1000000 },
       { left: 'Perf.W', operation: 'greater', right: 2 },
       { left: 'relative_volume_10d_calc', operation: 'greater', right: 1.5 },
       { left: 'SMA50', operation: 'greater', right: 'SMA200' },
@@ -69,8 +69,8 @@ const SCANS = {
     name: 'Pullback to Support',
     filters: [
       { left: 'close', operation: 'greater', right: 5 },
-      { left: 'market_cap_basic', operation: 'greater', right: 500000000 },
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 300000 },
+      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 1000000 },
       { left: 'SMA50', operation: 'greater', right: 'SMA200' },
       { left: 'close', operation: 'egreater', right: 'SMA200' },
       { left: 'RSI', operation: 'in_range', right: [42, 52] },
@@ -86,8 +86,8 @@ const SCANS = {
     // No SMA200 filter — oversold stocks are expected to be in downtrends
     filters: [
       { left: 'close', operation: 'greater', right: 5 },
-      { left: 'market_cap_basic', operation: 'greater', right: 500000000 },
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 300000 },
+      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 1000000 },
       { left: 'RSI', operation: 'less', right: 35 },
       { left: 'Perf.W', operation: 'less', right: -4 },
       { left: 'Perf.1M', operation: 'in_range', right: [-45, -10] }
@@ -98,8 +98,8 @@ const SCANS = {
     name: 'Early Trend Forming',
     filters: [
       { left: 'close', operation: 'greater', right: 5 },
-      { left: 'market_cap_basic', operation: 'greater', right: 500000000 },
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 300000 },
+      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 1000000 },
       { left: 'close', operation: 'egreater', right: 'SMA50' },
       { left: 'close', operation: 'egreater', right: 'SMA200' },
       { left: 'RSI', operation: 'in_range', right: [50, 72] },
