@@ -53,22 +53,24 @@ const SCANS = {
   breakout: {
     name: 'Momentum Breakout',
     filters: [
+      { left: 'close', operation: 'greater', right: 5 },
+      { left: 'market_cap_basic', operation: 'greater', right: 500000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 300000 },
       { left: 'Perf.W', operation: 'greater', right: 2 },
       { left: 'relative_volume_10d_calc', operation: 'greater', right: 1.5 },
       { left: 'SMA50', operation: 'greater', right: 'SMA200' },
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 500000 },
-      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
-      { left: 'RSI', operation: 'in_range', right: [55, 75] },
-      { left: 'close', operation: 'egreater', right: 'SMA50' }
+      { left: 'close', operation: 'egreater', right: 'SMA50' },
+      { left: 'close', operation: 'egreater', right: 'SMA200' },
+      { left: 'RSI', operation: 'in_range', right: [55, 75] }
     ],
     sort: 'relative_volume_10d_calc|desc'
   },
   pullback: {
     name: 'Pullback to Support',
     filters: [
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 500000 },
-      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
-      { left: 'close', operation: 'greater', right: 10 },
+      { left: 'close', operation: 'greater', right: 5 },
+      { left: 'market_cap_basic', operation: 'greater', right: 500000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 300000 },
       { left: 'SMA50', operation: 'greater', right: 'SMA200' },
       { left: 'close', operation: 'egreater', right: 'SMA200' },
       { left: 'RSI', operation: 'in_range', right: [42, 52] },
@@ -81,10 +83,11 @@ const SCANS = {
   },
   oversold: {
     name: 'Oversold Bounce',
+    // No SMA200 filter — oversold stocks are expected to be in downtrends
     filters: [
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 500000 },
-      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
-      { left: 'close', operation: 'greater', right: 10 },
+      { left: 'close', operation: 'greater', right: 5 },
+      { left: 'market_cap_basic', operation: 'greater', right: 500000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 300000 },
       { left: 'RSI', operation: 'less', right: 35 },
       { left: 'Perf.W', operation: 'less', right: -4 },
       { left: 'Perf.1M', operation: 'in_range', right: [-45, -10] }
@@ -94,10 +97,11 @@ const SCANS = {
   early_trend: {
     name: 'Early Trend Forming',
     filters: [
-      { left: 'average_volume_30d_calc', operation: 'greater', right: 500000 },
-      { left: 'market_cap_basic', operation: 'greater', right: 2000000000 },
-      { left: 'close', operation: 'greater', right: 10 },
+      { left: 'close', operation: 'greater', right: 5 },
+      { left: 'market_cap_basic', operation: 'greater', right: 500000000 },
+      { left: 'average_volume_30d_calc', operation: 'greater', right: 300000 },
       { left: 'close', operation: 'egreater', right: 'SMA50' },
+      { left: 'close', operation: 'egreater', right: 'SMA200' },
       { left: 'RSI', operation: 'in_range', right: [50, 72] },
       { left: 'Perf.1M', operation: 'greater', right: 7 },
       { left: 'relative_volume_10d_calc', operation: 'greater', right: 1.1 }
@@ -262,11 +266,13 @@ function parseRow(row, scanKey) {
     ticker,
     raw_ticker: row.s,
     scanKey,
+    type: data[2],                     // 'stock', 'dr' (ADR/depositary receipt), 'fund'
     close: data[1],                    // close
     change: data[9],                   // change
     volume: data[10],                  // volume
     rel_vol_10d: data[11],             // relative_volume_10d_calc
     market_cap: data[12],              // market_cap_basic
+    eps_growth: data[16] ?? null,      // earnings_per_share_diluted_yoy_growth_ttm
     sector: data[20],                  // sector
     analyst_rating: data[21],          // AnalystRating
     // d[23..34] — technical indicators added to columns
@@ -286,49 +292,84 @@ function parseRow(row, scanKey) {
 }
 
 /**
- * Score stock by confluence signals (21 points max)
- * Since API filters provide technical criteria, score based on:
- * - Multiple scan hits (5 pts)
- * - Analyst rating (5 pts)
- * - Volume quality (3 pts)
- * - Daily performance (3 pts)
+ * Auto-detect catalysts from available API data.
+ * [MOMENTUM] and [EARNINGS] can be derived from screener fields.
+ * [INDEX], [UPGRADE], [SECTOR] require external data — not auto-detected.
+ */
+function detectCatalysts(stock) {
+  const catalysts = [];
+  if (stock.perf_w != null && stock.perf_w > 10) catalysts.push('[MOMENTUM]');
+  if (stock.eps_growth != null && stock.eps_growth > 15) catalysts.push('[EARNINGS]');
+  return catalysts;
+}
+
+/**
+ * Score stock by confluence signals (max ~15 pts)
+ *
+ * Components:
+ *   Scan confluence : 1 scan=1, 2 scans=3, 3+=4     (max 4)
+ *   Analyst rating  : StrongBuy=3, Buy=2, Sell=-2    (max 3)
+ *   MACD contextual : bullish+SMA50=+2, else varies  (max 2)
+ *   RSI zone        : 45-65=+2, 65-70=+1             (max 2)
+ *   Price vs MAs    : above both=+2, SMA50 only=+1   (max 2)
+ *   Volume (Vol×)   : >3x=+2, 1.5-3x=+1             (max 2)
  */
 function scoreConfluence(stock) {
+  const catalysts = detectCatalysts(stock);
+  stock.catalysts = catalysts;
+  const hasCatalyst = catalysts.length > 0;
+
+  const aboveSMA50  = stock.close != null && stock.sma50  != null && stock.close > stock.sma50;
+  const aboveSMA200 = stock.close != null && stock.sma200 != null && stock.close > stock.sma200;
+  const macdBullish = stock.macd != null && stock.macd_signal != null && stock.macd > stock.macd_signal;
+
+  // Build flags for output
+  stock.flags = [];
+  if (stock.type === 'dr') stock.flags.push('ADR');
+  if (stock.rsi != null && stock.rsi > 70) stock.flags.push('OVERBOUGHT');
+  if (stock.rsi != null && stock.rsi < 30) stock.flags.push('OVERSOLD_BOUNCE');
+
   let score = 0;
 
-  // Multi-scan hits (5 pts max)
+  // Scan confluence (max 4 pts)
   const scanCount = stock.found_in?.length || 1;
-  if (scanCount >= 3) score += 5;
-  else if (scanCount === 2) score += 4;
-  else score += 2;
+  if (scanCount >= 3) score += 4;
+  else if (scanCount === 2) score += 3;
+  else score += 1;
 
-  // Analyst rating (5 pts max)
+  // Analyst rating (max 3 pts)
   const rating = (stock.analyst_rating || '').toLowerCase();
-  if (rating.includes('strong buy')) score += 5;
-  else if (rating.includes('buy')) score += 3;
-  else if (rating.includes('hold')) score += 1;
+  if (rating.includes('strong buy')) score += 3;
+  else if (rating.includes('buy')) score += 2;
   else if (rating.includes('sell')) score -= 2;
 
-  // Volume quality (3 pts max)
+  // MACD contextual (max +2, min -1)
+  if (macdBullish && aboveSMA50) score += 2;
+  else if (!macdBullish && aboveSMA50 && hasCatalyst) score += 1;
+  else if (!macdBullish && !aboveSMA50) score -= 1;
+  // MACD bearish + below SMA200 → hard exclude handled in calculateTradeMetrics
+
+  // RSI zone (max +2)
+  const rsi = stock.rsi;
+  if (rsi != null) {
+    if (rsi >= 45 && rsi <= 65) score += 2;
+    else if (rsi > 65 && rsi <= 70) score += 1;
+    else if (rsi < 40 && hasCatalyst) score += 1;
+    // RSI > 70: 0 pts (flagged OVERBOUGHT)
+    // RSI < 40 without catalyst: 0 pts
+  }
+
+  // Price vs moving averages (max +2)
+  if (aboveSMA50 && aboveSMA200) score += 2;
+  else if (aboveSMA50) score += 1;
+
+  // Volume — Vol× (max +2)
   if (stock.rel_vol_10d != null) {
-    if (stock.rel_vol_10d > 2.0) score += 3;
-    else if (stock.rel_vol_10d > 1.5) score += 2;
-    else if (stock.rel_vol_10d > 1.0) score += 1;
+    if (stock.rel_vol_10d > 3.0) score += 2;
+    else if (stock.rel_vol_10d >= 1.5) score += 1;
   }
 
-  // Daily performance (3 pts max)
-  if (stock.change != null) {
-    if (stock.change > 5) score += 3;
-    else if (stock.change > 2) score += 2;
-    else if (stock.change > 0) score += 1;
-    else if (stock.change < -3) score -= 1;
-  }
-
-  // Market cap stability bonus (2 pts)
-  if (stock.market_cap != null && stock.market_cap > 5000000000) score += 2;
-
-  // Cap at 21 max
-  return Math.min(21, Math.max(0, score));
+  return Math.max(0, score);
 }
 
 /**
@@ -369,67 +410,57 @@ function consolidateResults(allScans) {
 }
 
 /**
- * Calculate trade metrics (stop loss, take profit targets)
- * Uses percentage-based approach since ATR not available from API
+ * Calculate trade metrics — fixed -3% stop, +7% target.
+ *
+ * Verdict rules:
+ *   Score ≥ 11 + catalyst        → TRADE
+ *   Score ≥ 9  + MACD bullish    → TRADE
+ *   Score ≥ 8                    → WATCH
+ *   Score < 8 OR hard-exclude    → SKIP
+ *
+ * Hard-exclude: MACD bearish + price below SMA200
+ *   (exception: oversold scan with catalyst — still eligible for WATCH)
  */
 function calculateTradeMetrics(stock) {
   const entry = stock.close;
-  
-  // Use change as proxy for volatility assessment
-  // Conservative: 2% stop loss, 3% target for oversold scans
-  // More aggressive: 3% stop loss, 6% target for breakout scans
-  const isBreakout = stock.found_in?.includes('breakout');
-  const isOversold = stock.found_in?.includes('oversold');
-  
-  let stopPercent = 2.5;  // Default stop loss
-  let t1Percent = 5;      // Default take profit
-  
-  if (isBreakout) {
-    stopPercent = 3;
-    t1Percent = 7;
-  } else if (isOversold) {
-    stopPercent = 2;
-    t1Percent = 4;
-  }
-  
-  const stop = entry * (1 - stopPercent / 100);
-  const t1 = entry * (1 + t1Percent / 100);
+  const stop  = entry * 0.97;   // -3%
+  const t1    = entry * 1.07;   // +7%
+
+  const aboveSMA200 = stock.close != null && stock.sma200 != null && stock.close > stock.sma200;
+  const macdBullish = stock.macd != null && stock.macd_signal != null && stock.macd > stock.macd_signal;
+  const hasCatalyst = (stock.catalysts || []).length > 0;
+  const isOversold  = stock.found_in?.includes('oversold');
+
+  const hardExclude = !macdBullish && !aboveSMA200 && !(isOversold && hasCatalyst);
 
   let verdict = 'SKIP';
-  if (stock.score >= 12) verdict = 'TRADE';
-  else if (stock.score >= 8) verdict = 'WATCH';
+  if (!hardExclude) {
+    if (stock.score >= 11 && hasCatalyst) verdict = 'TRADE';
+    else if (stock.score >= 9 && macdBullish) verdict = 'TRADE';
+    else if (stock.score >= 8) verdict = 'WATCH';
+  }
 
-  const macdStatus = (stock.macd != null && stock.macd_signal != null && stock.macd > stock.macd_signal) ? 'BULLISH' : 'BEARISH';
-
+  const macdStatus = macdBullish ? 'BULLISH' : 'BEARISH';
   return { entry, stop, t1, verdict, macdStatus };
 }
 
 /**
- * Format stock output line
+ * Format stock output line.
+ * Layout: Symbol | Score | Price | Stop(-3%) | T1(+7%) | RSI | MACD | Vol× | Week% | MCap | Catalyst | Verdict
  */
 function formatStockLine(ticker, stock, metrics) {
-  const found = stock.found_in.map(s => {
-    const names = {
-      breakout: 'breakout',
-      pullback: 'pullback',
-      oversold: 'oversold',
-      early_trend: 'early_trend'
-    };
-    return names[s];
-  }).join(', ');
+  const n  = (val, d = 1) => val != null ? parseFloat(val).toFixed(d) : 'N/A';
+  const cap = (val) => val != null ? `$${(val / 1e9).toFixed(1)}B` : 'N/A';
 
-  // Safe access with defaults for missing data
-  const safeNum = (val, decimals = 1) => val != null ? parseFloat(val).toFixed(decimals) : 'N/A';
-  const safeCap = (val) => val != null ? (val / 1e9).toFixed(2) : 'N/A';
+  const adrTag    = (stock.flags || []).includes('ADR') ? ' [ADR]' : '';
+  const extraFlags = (stock.flags || []).filter(f => f !== 'ADR').join(' ');
+  const catalysts  = (stock.catalysts || []).join(' ') || '-';
+  const scans      = stock.found_in.join(', ');
 
-  const lines = [
-    `[${ticker}] — ${metrics.verdict} (${stock.score}/21) | Found in: ${found}`,
-    `  Price: $${safeNum(stock.close, 2)} | Change: ${safeNum(stock.change, 2)}% | RelVol: ${safeNum(stock.rel_vol_10d, 2)}x`,
-    `  Rating: ${stock.analyst_rating || 'N/A'} | Cap: $${safeCap(stock.market_cap)}B | Sector: ${stock.sector || 'N/A'}`,
-    `  Stop: $${safeNum(metrics.stop, 2)} | T1: $${safeNum(metrics.t1, 2)} | Risk/Reward: ${((metrics.t1 - stock.close) / (stock.close - metrics.stop)).toFixed(1)}:1`
-  ];
-
-  return lines.join('\n');
+  return [
+    `[${ticker}${adrTag}] — ${metrics.verdict} (${stock.score} pts) | ${scans}${extraFlags ? ' | ' + extraFlags : ''}`,
+    `  $${n(stock.close, 2)} | Stop $${n(metrics.stop, 2)}(-3%) | T1 $${n(metrics.t1, 2)}(+7%) | RSI ${n(stock.rsi)} | MACD ${metrics.macdStatus} | Vol× ${n(stock.rel_vol_10d, 2)} | Week ${n(stock.perf_w, 1)}% | ${cap(stock.market_cap)} | ${catalysts}`
+  ].join('\n');
 }
 
 /**
@@ -545,6 +576,9 @@ async function saveResults(consolidated, categories) {
         macd_signal: stock.macd_signal,
         sector: stock.sector,
         analyst_rating: stock.analyst_rating,
+        catalysts: stock.catalysts || [],
+        flags: stock.flags || [],
+        is_adr: stock.type === 'dr',
         stop_price: metrics.stop,
         t1_target: metrics.t1,
         macd_status: metrics.macdStatus

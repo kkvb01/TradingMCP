@@ -20,17 +20,28 @@ A personal trading assistant built on MCP (Model Context Protocol) that connects
 | `oversold` | Oversold Bounce | RSI < 35, Perf.W < -4%, Perf.1M -45% to -10% |
 | `early_trend` | Early Trend Forming | RSI 50-72, above SMA50, Perf.1M > 7%, rel_vol > 1.1x |
 
-### Scoring (max 21 pts)
-- Multi-scan hits: 2 pts (1 scan), 4 pts (2 scans), 5 pts (3+ scans)
-- Analyst rating: StrongBuy=5, Buy=3, Hold=1, Sell=-2
-- Relative volume: >2.0x=3, >1.5x=2, >1.0x=1
-- Daily change: >5%=3, >2%=2, >0=1, <-3%=-1
-- Market cap >$5B: +2
+### Hard Filters (all scans)
+- Price > $5, MCap > $500M, Avg daily vol > 300K
+- Price above SMA200 required (except oversold scan)
+- ADRs flagged with [ADR] tag
+
+### Scoring (max ~15 pts)
+- Scan confluence: 1 scan=1, 2 scans=3, 3+=4 pts
+- Analyst rating: StrongBuy=3, Buy=2, Sell=-2
+- MACD contextual: bullish+above SMA50=+2; bearish+SMA50+catalyst=+1; bearish+below SMA50=-1
+- RSI: 45-65=+2, 65-70=+1, <40 with catalyst=+1, >70=flag OVERBOUGHT
+- Price vs MAs: above SMA50+SMA200=+2, above SMA50 only=+1
+- Volume Vol×: >3.0x=+2, 1.5-3.0x=+1
+
+### Auto-detected Catalysts
+- `[MOMENTUM]` — Perf.W > 10%
+- `[EARNINGS]` — EPS YoY growth > 15%
+- `[INDEX]`, `[UPGRADE]`, `[SECTOR]` — manual only (not auto-detectable from screener API)
 
 ### Verdicts
-- **TRADE** = score ≥ 12
-- **WATCH** = score 8–11
-- **SKIP** = score < 8
+- **TRADE** = score >= 11 + catalyst, OR score >= 9 + MACD bullish
+- **WATCH** = score >= 8
+- **SKIP** = score < 8, OR MACD bearish + below SMA200 (hard exclude)
 
 ### Columns Returned by API (index map)
 ```
@@ -56,8 +67,8 @@ Config: `cloudflare/claude_desktop_config_snippet.json` shows how to wire up MCP
 ## Key Constraints
 - Scanner uses unauthenticated TradingView screener API (public endpoint)
 - All MACD status defaults to BEARISH when MACD columns are null (data quality issue to watch)
-- `EXMT` and similar sub-penny stocks can slip through breakout scan; market_cap < $1M is noise
-- Stop/target use percentage-based ATR proxy (breakout: 3%/7%, oversold: 2%/4%, default: 2.5%/5%)
+- Stop/target are fixed: -3% stop, +7% T1 (2.33:1 R/R on every trade)
+- MACD null values default to BEARISH (data quality issue from API)
 
 ## Run Commands
 ```bash
