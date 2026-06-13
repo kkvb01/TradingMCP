@@ -3,6 +3,7 @@ name: Deploy Cloudflare Workers
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -12,10 +13,10 @@ jobs:
     name: Detect changed workers
     runs-on: ubuntu-latest
     outputs:
-      scanner-mcp: ${{ steps.filter.outputs.scanner-mcp }}
-      trade-analyzer: ${{ steps.filter.outputs.trade-analyzer }}
-      trade-journal: ${{ steps.filter.outputs.trade-journal }}
-      guardrail-engine: ${{ steps.filter.outputs.guardrail-engine }}
+      scanner-mcp: ${{ steps.filter.outputs.scanner-mcp == 'true' || github.event_name == 'workflow_dispatch' }}
+      trade-analyzer: ${{ steps.filter.outputs.trade-analyzer == 'true' || github.event_name == 'workflow_dispatch' }}
+      trade-journal: ${{ steps.filter.outputs.trade-journal == 'true' || github.event_name == 'workflow_dispatch' }}
+      guardrail-engine: ${{ steps.filter.outputs.guardrail-engine == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: dorny/paths-filter@v3.0.2
