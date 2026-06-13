@@ -234,7 +234,7 @@ async function handleMcpMessage(msg, kv) {
     return mcpOk(id, {
       protocolVersion: "2024-11-05",
       capabilities:    { tools: {} },
-      serverInfo:      { name: "scanner-mcp", version: "1.0" },
+      serverInfo:      { name: "scanner-mcp", version: "1.1" },
     });
   }
   if (method === "notifications/initialized") return null;
