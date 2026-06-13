@@ -1,0 +1,11 @@
+name = "trade-journal"
+main = "src/index.js"
+compatibility_date = "2025-06-08"
+compatibility_flags = ["nodejs_compat"]
+
+# Required secrets — set via wrangler CLI, never hardcode:
+#   wrangler secret put NOTION_API_KEY
+#   wrangler secret put NOTION_DATABASE_ID
+
+[vars]
+VERSION = "5.0"

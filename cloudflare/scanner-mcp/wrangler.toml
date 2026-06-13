@@ -1,0 +1,16 @@
+name = "scanner-mcp"
+main = "src/index.js"
+compatibility_date = "2025-06-08"
+compatibility_flags = ["nodejs_compat"]
+
+# 1. Create KV namespace:
+#    npx wrangler kv namespace create SCANNER_KV
+#    Copy the `id` from the output and paste it below
+
+[[kv_namespaces]]
+binding = "SCANNER_KV"
+id = "21a4e99361b246f88626bcd0c4ce636e"
+
+# 2. Set upload API key (used by scanner.js to push results):
+#    npx wrangler secret put SCANNER_API_KEY
+#    (choose any long random string, paste same value into scanner.js config)

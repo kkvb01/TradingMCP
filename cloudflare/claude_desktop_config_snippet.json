@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "scanner-mcp": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://scanner-mcp.tda-guardrails.workers.dev/mcp"]
+    },
+    "guardrail-engine": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://guardrail-engine.tda-guardrails.workers.dev/mcp"]
+    },
+    "trade-analyzer": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://trade-analyzer.tda-guardrails.workers.dev/mcp"]
+    },
+    "trade-journal": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://trade-journal.tda-guardrails.workers.dev/mcp"]
+    }
+  }
+}

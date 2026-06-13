@@ -1,0 +1,7 @@
+name = "guardrail-engine"
+main = "src/index.js"
+compatibility_date = "2025-06-08"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+VERSION = "5.0"

@@ -1,0 +1,8 @@
+name = "trade-analyzer"
+main = "src/index.js"
+compatibility_date = "2025-06-08"
+compatibility_flags = ["nodejs_compat"]
+
+# POLYGON_API_KEY is added via:
+# wrangler secret put POLYGON_API_KEY
+# Never hardcode it here
