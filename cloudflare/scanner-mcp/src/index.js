@@ -93,6 +93,21 @@ const TOOLS = [
     },
   },
   {
+    name: "get_healthcare_stocks",
+    description: "Returns all Healthcare and Pharma stocks (Health Technology + Health Services sectors) found in today's scan, across all verdicts. Use this when the user asks specifically about drug companies, biotech, pharma, or healthcare plays.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        verdict: {
+          type: "string",
+          enum: ["TRADE", "WATCH", "ALL"],
+          description: "Filter by verdict. Default: ALL (shows TRADE and WATCH healthcare stocks).",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "get_scan_config",
     description: "Returns the filter criteria used to run the scanner — all 4 scan types with their exact conditions, the scoring rules (how points are awarded), and the verdict thresholds (TRADE/WATCH/SKIP). Use this when the user asks why a stock was or wasn't included, or wants to understand the strategy behind the scan.",
     inputSchema: {
@@ -231,6 +246,46 @@ async function handleGetScanSummary(kv) {
   ].join("\n");
 }
 
+async function handleGetHealthcareStocks(args, kv) {
+  const raw = await kv.get(KV_KEY);
+  if (!raw) return "No scan data available. Run the scanner first.";
+  const data = JSON.parse(raw);
+
+  const verdict = (args.verdict || "ALL").toUpperCase();
+  const hc = (data.stocks || []).filter(s => {
+    if (!s.sector || !s.sector.toLowerCase().includes("health")) return false;
+    if (verdict !== "ALL" && s.verdict !== verdict) return false;
+    if (s.verdict === "SKIP") return false;
+    return true;
+  });
+
+  if (hc.length === 0) return "No Healthcare / Pharma stocks found in today's scan" + (verdict !== "ALL" ? ` with verdict ${verdict}` : "") + ".";
+
+  hc.sort((a, b) => b.score - a.score);
+
+  const lines = [
+    `HEALTHCARE & PHARMA — ${new Date(data.timestamp).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`,
+    `(Health Technology + Health Services) — ${hc.length} stocks`,
+    "─".repeat(55),
+    "",
+  ];
+
+  for (const s of hc) {
+    const rr = (s.price && s.stop_price && s.t1_target)
+      ? ((s.t1_target - s.price) / (s.price - s.stop_price)).toFixed(2)
+      : "N/A";
+    lines.push(
+      `${s.ticker} | Score ${s.score} | ${s.verdict} | ${s.sector}`,
+      `  Price: $${(s.price||0).toFixed(2)}  Stop: $${(s.stop_price||0).toFixed(2)}  Target: $${(s.t1_target||0).toFixed(2)}  R:R ${rr}:1`,
+      `  RSI: ${s.rsi ? s.rsi.toFixed(1) : "N/A"}  Vol×: ${s.rel_vol_10d ? s.rel_vol_10d.toFixed(1) : "N/A"}x  MACD: ${s.macd_status}  Rating: ${s.analyst_rating || "N/A"}`,
+      `  Wk: ${s.perf_w != null ? (s.perf_w >= 0 ? "+" : "") + s.perf_w.toFixed(1) + "%" : "N/A"}  Mo: ${s.perf_1m != null ? (s.perf_1m >= 0 ? "+" : "") + s.perf_1m.toFixed(1) + "%" : "N/A"}  Scans: ${s.found_in.join("+")}`,
+      ""
+    );
+  }
+
+  return lines.join("\n");
+}
+
 function handleGetScanConfig() {
   return [
     "SCANNER CONFIGURATION",
@@ -328,6 +383,7 @@ async function handleMcpMessage(msg, kv) {
       if (name === "get_scan_results")  text = await handleGetScanResults(args ?? {}, kv);
       else if (name === "get_stock")    text = await handleGetStock(args ?? {}, kv);
       else if (name === "get_scan_summary") text = await handleGetScanSummary(kv);
+      else if (name === "get_healthcare_stocks") text = await handleGetHealthcareStocks(args ?? {}, kv);
       else if (name === "get_scan_config")  text = handleGetScanConfig();
       else return mcpErr(id, -32601, `Unknown tool: ${name}`);
       return mcpOk(id, { content: [{ type: "text", text }], isError: false });
