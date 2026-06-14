@@ -94,7 +94,7 @@ const TOOLS = [
   },
   {
     name: "get_healthcare_stocks",
-    description: "Returns all Healthcare and Pharma stocks (Health Technology + Health Services sectors) found in today's scan, across all verdicts. Use this when the user asks specifically about drug companies, biotech, pharma, or healthcare plays.",
+    description: "Returns Healthcare and Pharma stocks (Health Technology sector only — pharma, biotech, medical devices) found in today's scan. Excludes insurance companies (Health Services). Use this when the user asks about drug companies, biotech, or pharma plays.",
     inputSchema: {
       type: "object",
       properties: {
@@ -253,7 +253,7 @@ async function handleGetHealthcareStocks(args, kv) {
 
   const verdict = (args.verdict || "ALL").toUpperCase();
   const hc = (data.stocks || []).filter(s => {
-    if (!s.sector || !s.sector.toLowerCase().includes("health")) return false;
+    if (s.sector !== "Health Technology") return false;
     if (verdict !== "ALL" && s.verdict !== verdict) return false;
     if (s.verdict === "SKIP") return false;
     return true;

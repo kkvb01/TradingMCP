@@ -264,7 +264,7 @@ ${macdWarning}
   <div class="section-header" style="margin-top:28px">
     <h2>&#128138; Healthcare &amp; Pharma</h2>
     <span class="badge" id="hc-badge">0</span>
-    <span style="font-size:12px;color:var(--muted);margin-left:4px">Health Technology &amp; Health Services across all verdicts</span>
+    <span style="font-size:12px;color:var(--muted);margin-left:4px">Health Technology sector (pharma, biotech, med devices) — excludes insurers</span>
   </div>
   <div id="hc-empty" style="color:var(--muted);font-size:13px;padding:12px 0;display:none">No healthcare stocks found in this scan.</div>
   <div class="table-wrap" id="hc-wrap">
@@ -511,7 +511,7 @@ function hcRow(s) {
 
 function renderHealthcare() {
   var hc = stocks.filter(function(s) {
-    return s.verdict !== 'SKIP' && s.sector && s.sector.toLowerCase().includes('health');
+    return s.verdict !== 'SKIP' && s.sector === 'Health Technology';
   });
   hc.sort(function(a, b) { return b.score - a.score; });
   document.getElementById('hc-badge').textContent = hc.length + ' stocks';
