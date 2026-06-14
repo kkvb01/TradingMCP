@@ -92,6 +92,15 @@ const TOOLS = [
       required: [],
     },
   },
+  {
+    name: "get_scan_config",
+    description: "Returns the filter criteria used to run the scanner — all 4 scan types with their exact conditions, the scoring rules (how points are awarded), and the verdict thresholds (TRADE/WATCH/SKIP). Use this when the user asks why a stock was or wasn't included, or wants to understand the strategy behind the scan.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // ── Tool handlers ─────────────────────────────────────────────────────────────
@@ -222,6 +231,77 @@ async function handleGetScanSummary(kv) {
   ].join("\n");
 }
 
+function handleGetScanConfig() {
+  return [
+    "SCANNER CONFIGURATION",
+    "═".repeat(55),
+    "",
+    "SCAN TYPES (4 parallel scans run on every execution):",
+    "",
+    "1. MOMENTUM BREAKOUT",
+    "   Weekly perf > +2%",
+    "   RSI 55–75 (momentum without being overbought)",
+    "   Price above SMA50",
+    "   Relative volume > 1.5× (above-average activity)",
+    "",
+    "2. PULLBACK TO SUPPORT",
+    "   RSI 42–52 (cooling off, not oversold)",
+    "   Price above SMA200 (long-term uptrend intact)",
+    "   Weekly perf −8% to −1% (dip in progress)",
+    "   1-month perf > +3% (pullback within a rising trend)",
+    "",
+    "3. OVERSOLD BOUNCE",
+    "   RSI < 35 (oversold)",
+    "   Weekly perf < −4% (sharp drop)",
+    "   1-month perf −45% to −10% (significant decline, not a collapse)",
+    "",
+    "4. EARLY TREND FORMING",
+    "   RSI 50–72 (gaining momentum)",
+    "   Price above SMA50",
+    "   1-month perf > +7% (emerging strength)",
+    "   Relative volume > 1.1× (growing interest)",
+    "",
+    "SCORING RULES (max 21 pts):",
+    "",
+    "  Multi-scan confluence:",
+    "    1 scan hit  → +2 pts",
+    "    2 scan hits → +4 pts",
+    "    3+ scan hits → +5 pts",
+    "",
+    "  Analyst rating:",
+    "    Strong Buy → +5 pts",
+    "    Buy        → +3 pts",
+    "    Hold       → +1 pt",
+    "    Sell       → −2 pts",
+    "",
+    "  Relative volume:",
+    "    > 2.0×  → +3 pts",
+    "    > 1.5×  → +2 pts",
+    "    > 1.0×  → +1 pt",
+    "",
+    "  Daily price change:",
+    "    > +5%   → +3 pts",
+    "    > +2%   → +2 pts",
+    "    > 0%    → +1 pt",
+    "    < −3%   → −1 pt",
+    "",
+    "  Market cap > $5B → +2 pts",
+    "",
+    "VERDICT THRESHOLDS:",
+    "  TRADE  = score ≥ 12  (high-conviction, act now)",
+    "  WATCH  = score 8–11  (monitor, wait for confirmation)",
+    "  SKIP   = score < 8   (insufficient signal)",
+    "",
+    "STOP / TARGET CALCULATION (ATR-based %):",
+    "  Breakout  → Stop −3%  / Target +7%",
+    "  Oversold  → Stop −2%  / Target +4%",
+    "  All others → Stop −2.5% / Target +5%",
+    "",
+    "DATA SOURCE: TradingView screener API (unauthenticated, US equities)",
+    "UNIVERSE: All US stocks passing each scan's filter set",
+  ].join("\n");
+}
+
 // ── MCP message router ────────────────────────────────────────────────────────
 
 const mcpOk  = (id, result)        => ({ jsonrpc: "2.0", id, result });
@@ -248,6 +328,7 @@ async function handleMcpMessage(msg, kv) {
       if (name === "get_scan_results")  text = await handleGetScanResults(args ?? {}, kv);
       else if (name === "get_stock")    text = await handleGetStock(args ?? {}, kv);
       else if (name === "get_scan_summary") text = await handleGetScanSummary(kv);
+      else if (name === "get_scan_config")  text = handleGetScanConfig();
       else return mcpErr(id, -32601, `Unknown tool: ${name}`);
       return mcpOk(id, { content: [{ type: "text", text }], isError: false });
     } catch (err) {
