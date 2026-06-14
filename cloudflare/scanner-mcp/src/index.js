@@ -696,7 +696,7 @@ function skipRow(s) {
     +'<\/tr>';
 }
 function renderAll() {
-  var trades=stocks.filter(function(s){return s.verdict==='TRADE';});
+  var trades=stocks.filter(function(s){return s.verdict==='TRADE'&&s.sector!=='Health Technology';});
   document.getElementById('trade-grid').innerHTML=trades.map(tradeCard).join('');
   document.getElementById('trade-badge').textContent=trades.length+' stocks';
   renderWatch();
@@ -718,7 +718,7 @@ function renderWatch() {
   var rat=document.getElementById('wrat').value;
   var macd=document.getElementById('wmacd').value;
   var list=stocks.filter(function(s){
-    if(s.verdict!=='WATCH')return false;
+    if(s.verdict!=='WATCH'||s.sector==='Health Technology')return false;
     if(q&&!s.ticker.toLowerCase().includes(q)&&!(s.sector||'').toLowerCase().includes(q))return false;
     if(sect&&s.sector!==sect)return false;
     if(rat&&s.analyst_rating!==rat)return false;
