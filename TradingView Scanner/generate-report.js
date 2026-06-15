@@ -310,6 +310,37 @@ ${macdWarning}
   </div>
 
   <div class="section-header" style="margin-top:28px">
+    <h2>&#128138; Healthcare &amp; Pharma</h2>
+    <span class="badge" id="hc-badge">0</span>
+    <span style="font-size:12px;color:var(--muted);margin-left:4px">Health Technology sector (pharma, biotech, med devices) — excludes insurers</span>
+  </div>
+  <div id="hc-empty" style="color:var(--muted);font-size:13px;padding:12px 0;display:none">No healthcare stocks found in this scan.</div>
+  <div class="table-wrap" id="hc-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Verdict</th>
+          <th>Score</th>
+          <th>Price</th>
+          <th>Wk%</th>
+          <th>Mo%</th>
+          <th>RSI</th>
+          <th>Vol&#215;</th>
+          <th>Stop</th>
+          <th>Target</th>
+          <th>R:R</th>
+          <th>MACD</th>
+          <th>Rating</th>
+          <th>Sub-sector</th>
+          <th>Scans</th>
+        </tr>
+      </thead>
+      <tbody id="hc-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="section-header" style="margin-top:28px">
     <h2 style="color:var(--muted)">&#9899; Skipped</h2>
     <span class="badge" id="skip-badge">0</span>
   </div>
@@ -500,12 +531,55 @@ function skipRow(s) {
     + '<\/tr>';
 }
 
+function hcRow(s) {
+  var rr     = calcRR(s);
+  var wkCol  = s.perf_w  >= 0 ? 'var(--green)' : 'var(--red)';
+  var moCol  = s.perf_1m >= 0 ? 'var(--green)' : 'var(--red)';
+  var macdCl = s.macd_status === 'BULLISH' ? 'var(--green)' : 'var(--red)';
+  var vChip  = '<span class="verdict-chip ' + s.verdict + '" style="font-size:10px">' + s.verdict + '<\/span>';
+  var scanTags = s.found_in.map(function(id) {
+    return '<span class="tag ' + SCAN_CLS[id] + '" style="font-size:10px;padding:1px 5px;">' + SCAN_LABELS[id] + '<\/span>';
+  }).join(' ');
+  return '<tr>'
+    + '<td><a href="https://www.tradingview.com/chart/?symbol=' + s.ticker + '" target="_blank" rel="noopener" style="font-weight:700">' + s.ticker + '<\/a><\/td>'
+    + '<td>' + vChip + '<\/td>'
+    + '<td><span style="font-weight:700;color:' + scoreColor(s.score) + '">' + s.score + '<\/span><\/td>'
+    + '<td>' + fmtPc(s.price) + '<\/td>'
+    + '<td style="color:' + wkCol  + '">' + fmtPct(s.perf_w)  + '<\/td>'
+    + '<td style="color:' + moCol  + '">' + fmtPct(s.perf_1m) + '<\/td>'
+    + '<td>' + fmt(s.rsi, 1) + '<\/td>'
+    + '<td>' + fmt(s.rel_vol_10d, 1) + 'x<\/td>'
+    + '<td style="color:var(--red)">'   + fmtPc(s.stop_price) + '<\/td>'
+    + '<td style="color:var(--green)">' + fmtPc(s.t1_target)  + '<\/td>'
+    + '<td style="font-weight:700">' + (rr ? rr.toFixed(2) + ':1' : '--') + '<\/td>'
+    + '<td style="color:' + macdCl + ';font-size:11px;font-weight:600">' + s.macd_status + '<\/td>'
+    + '<td style="font-size:11px">' + (RAT_LABEL[s.analyst_rating] || s.analyst_rating || '--') + '<\/td>'
+    + '<td style="color:var(--muted);font-size:11px">' + (s.sector || '--') + '<\/td>'
+    + '<td>' + scanTags + '<\/td>'
+    + '<\/tr>';
+}
+
+function renderHealthcare() {
+  var hc = stocks.filter(function(s) {
+    return s.verdict !== 'SKIP' && s.sector === 'Health Technology';
+  });
+  hc.sort(function(a, b) { return b.score - a.score; });
+  document.getElementById('hc-badge').textContent = hc.length + ' stocks';
+  if (hc.length === 0) {
+    document.getElementById('hc-wrap').style.display = 'none';
+    document.getElementById('hc-empty').style.display = 'block';
+  } else {
+    document.getElementById('hc-tbody').innerHTML = hc.map(hcRow).join('');
+  }
+}
+
 function renderAll() {
   var trades = stocks.filter(function(s) { return s.verdict === 'TRADE'; });
   document.getElementById('trade-grid').innerHTML = trades.map(tradeCard).join('');
   document.getElementById('trade-badge').textContent = trades.length + ' stocks';
 
   renderWatch();
+  renderHealthcare();
 
   var skips = stocks.filter(function(s) { return s.verdict === 'SKIP'; });
   document.getElementById('skip-tbody').innerHTML = skips.map(skipRow).join('');
