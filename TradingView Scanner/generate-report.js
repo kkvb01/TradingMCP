@@ -21,10 +21,44 @@ const watchCount = data.summary.watch_candidates;
 const totalCount = data.summary.total_candidates;
 const multiCount = data.summary.multi_scan_hits;
 
+const topSectors    = data.top_sectors || [];
+const sectorRankings = data.sector_rankings || [];
+
 const bearish = data.stocks.filter(s => s.verdict !== 'SKIP' && s.macd_status === 'BEARISH').length;
 const actionable = data.stocks.filter(s => s.verdict !== 'SKIP').length;
 const macdWarning = bearish > 0
   ? `<div class="warn-bar">&#9888; MACD Headwind: ${bearish} of ${actionable} actionable candidates show BEARISH MACD momentum</div>`
+  : '';
+
+function fmtPct(n) {
+  if (n == null) return 'N/A';
+  return (n >= 0 ? '+' : '') + Number(n).toFixed(1) + '%';
+}
+
+const selectedSet = new Set(topSectors.map(s => s.sector));
+
+const sectorPillsHtml = sectorRankings.map(s => {
+  const isSel = selectedSet.has(s.sector);
+  const wCol  = s.perf_w  >= 0 ? '#3fb950' : '#f85149';
+  const mCol  = s.perf_1m >= 0 ? '#3fb950' : '#f85149';
+  return `<div class="sector-pill ${isSel ? 'selected' : 'not-selected'}">
+    ${isSel ? '<span class="sp-selected-badge">FOCUS</span>' : ''}
+    <div class="sp-rank">#${s.rank} ${isSel ? '&#9733; Selected' : ''}</div>
+    <div class="sp-name">${s.sector}</div>
+    <div class="sp-etf">${s.etf}</div>
+    <div class="sp-perf">
+      <span style="color:${wCol}">${fmtPct(s.perf_w)}W</span>
+      <span style="color:${mCol}">${fmtPct(s.perf_1m)}M</span>
+      ${s.rsi != null ? `<span style="color:var(--muted)">RSI ${Math.round(s.rsi)}</span>` : ''}
+    </div>
+  </div>`;
+}).join('');
+
+const sectorPanelHtml = sectorRankings.length > 0
+  ? `<div class="sector-panel">
+    <div class="sector-panel-title">&#127362; Sector Momentum — Top ${topSectors.length} Selected as Focus</div>
+    <div class="sector-pills">${sectorPillsHtml}</div>
+  </div>`
   : '';
 
 const html = `<!DOCTYPE html>
@@ -168,6 +202,18 @@ const html = `<!DOCTYPE html>
   .skip-body.open { display: block; }
   .ml-auto { margin-left: auto; }
 
+  .sector-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 28px; }
+  .sector-panel-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  .sector-pills { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sector-pill { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; min-width: 150px; position: relative; }
+  .sector-pill.selected { border-color: rgba(63,185,80,0.4); background: rgba(63,185,80,0.05); }
+  .sector-pill.not-selected { opacity: 0.55; }
+  .sp-rank { font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: 0.3px; margin-bottom: 3px; }
+  .sp-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .sp-etf  { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .sp-perf { display: flex; gap: 8px; margin-top: 6px; font-size: 12px; font-weight: 600; }
+  .sp-selected-badge { position: absolute; top: 8px; right: 10px; font-size: 9px; font-weight: 700; color: var(--green); letter-spacing: 0.3px; }
+
   @media (max-width: 900px) {
     .charts-row { grid-template-columns: 1fr; }
     .trade-grid  { grid-template-columns: 1fr; }
@@ -194,6 +240,8 @@ const html = `<!DOCTYPE html>
 ${macdWarning}
 
 <main>
+
+  ${sectorPanelHtml}
 
   <div class="charts-row">
     <div class="chart-card">
@@ -366,7 +414,9 @@ function tradeCard(s) {
 
   var macdTag = '<span class="tag ' + (s.macd_status === 'BULLISH' ? 'bullish' : 'bearish') + '">MACD ' + s.macd_status + '<\/span>';
 
-  var secTag = s.sector ? '<span class="tag sector">' + s.sector + '<\/span>' : '';
+  var secLabel = s.sector || '';
+  if (s.sector_rank != null) secLabel += ' #' + s.sector_rank;
+  var secTag = s.sector ? '<span class="tag sector">' + secLabel + '<\/span>' : '';
 
   var rrLabel = rr ? rr.toFixed(2) + ':1 R:R' : 'R:R N/A';
   var wkColor = s.perf_w >= 0 ? 'var(--green)' : 'var(--red)';
@@ -618,14 +668,36 @@ function buildCharts() {
     options: Object.assign({}, bo, { indexAxis: 'y', scales: { x: { grid: { color: gc }, beginAtZero: true }, y: { grid: { color: 'transparent' }, ticks: { font: { size: 11 } } } } })
   });
 
-  var sectorMap = {};
-  stocks.forEach(function(s) { if (s.sector) sectorMap[s.sector] = (sectorMap[s.sector] || 0) + 1; });
-  var topSec = Object.entries(sectorMap).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8);
-  new Chart(document.getElementById('sectorChart'), {
-    type: 'bar',
-    data: { labels: topSec.map(function(s) { return s[0]; }), datasets: [{ data: topSec.map(function(s) { return s[1]; }), backgroundColor: '#a371f7', borderRadius: 5 }] },
-    options: Object.assign({}, bo, { indexAxis: 'y', scales: { x: { grid: { color: gc }, beginAtZero: true }, y: { grid: { color: 'transparent' }, ticks: { font: { size: 10 } } } } })
-  });
+  var sectorRankData = D.sector_rankings || [];
+  if (sectorRankData.length > 0) {
+    var topSet = new Set((D.top_sectors || []).map(function(s) { return s.sector; }));
+    var secColors = sectorRankData.map(function(s) {
+      return topSet.has(s.sector) ? '#3fb950' : '#30363d';
+    });
+    new Chart(document.getElementById('sectorChart'), {
+      type: 'bar',
+      data: {
+        labels: sectorRankData.map(function(s) { return s.etf; }),
+        datasets: [{ data: sectorRankData.map(function(s) { return s.perf_w != null ? parseFloat(s.perf_w.toFixed(2)) : 0; }), backgroundColor: secColors, borderRadius: 4 }]
+      },
+      options: Object.assign({}, bo, {
+        scales: {
+          x: { grid: { color: 'transparent' }, ticks: { font: { size: 10 } } },
+          y: { grid: { color: gc }, ticks: { callback: function(v) { return v + '%'; }, font: { size: 10 } } }
+        },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return sectorRankData[ctx.dataIndex].sector + ': ' + (ctx.raw >= 0 ? '+' : '') + ctx.raw + '%W'; } } } }
+      })
+    });
+  } else {
+    var sectorMap = {};
+    stocks.forEach(function(s) { if (s.sector) sectorMap[s.sector] = (sectorMap[s.sector] || 0) + 1; });
+    var topSec = Object.entries(sectorMap).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8);
+    new Chart(document.getElementById('sectorChart'), {
+      type: 'bar',
+      data: { labels: topSec.map(function(s) { return s[0]; }), datasets: [{ data: topSec.map(function(s) { return s[1]; }), backgroundColor: '#a371f7', borderRadius: 5 }] },
+      options: Object.assign({}, bo, { indexAxis: 'y', scales: { x: { grid: { color: gc }, beginAtZero: true }, y: { grid: { color: 'transparent' }, ticks: { font: { size: 10 } } } } })
+    });
+  }
 
   var bins = [0, 0, 0, 0, 0];
   stocks.forEach(function(s) {

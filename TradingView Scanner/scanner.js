@@ -28,7 +28,24 @@ const HEADERS = {
   'Origin': 'https://www.tradingview.com',
   'Referer': 'https://www.tradingview.com/',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  // TODO: Add auth header if API requires: 'Authorization': 'Bearer YOUR_TOKEN'
+};
+
+// ── Sector-first config ───────────────────────────────────────────────────────
+const TOP_SECTORS_COUNT = 3; // Top N sectors by weekly ETF momentum to focus on
+
+// Maps SPDR sector ETF tickers → TradingView sector strings used in stock screener
+const SECTOR_ETF_MAP = {
+  'XLK':  'Technology',
+  'XLF':  'Financial Services',
+  'XLE':  'Energy',
+  'XLY':  'Consumer Cyclical',
+  'XLV':  'Healthcare',
+  'XLI':  'Industrials',
+  'XLB':  'Basic Materials',
+  'XLP':  'Consumer Defensive',
+  'XLRE': 'Real Estate',
+  'XLU':  'Utilities',
+  'XLC':  'Communication Services',
 };
 
 const COMMON_FILTER2 = {
@@ -115,7 +132,7 @@ const SCANS = {
  */
 function generateMockData(scanKey) {
   const tickers = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'TSLA', 'AMD', 'AVGO', 'CRM', 'ADBE', 'MU'];
-  const sectors = ['Technology', 'Finance', 'Healthcare', 'Energy', 'Consumer'];
+  const sectors = ['Technology', 'Financial Services', 'Healthcare', 'Energy', 'Consumer Cyclical'];
   
   const mockRows = tickers.map((ticker, idx) => {
     const baseClose = 50 + Math.random() * 150;
@@ -150,6 +167,84 @@ function generateMockData(scanKey) {
   });
 
   return mockRows;
+}
+
+/**
+ * Rank sectors by SPDR ETF weekly performance.
+ * Returns all 11 sectors sorted by Perf.W desc, each tagged with rank.
+ * Returns null if the request fails — callers skip sector filtering.
+ */
+async function scanSectors() {
+  if (USE_MOCK) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const mock = [
+      { etf: 'XLK',  sector: 'Technology',            perf_w:  3.2, perf_1m:  8.1, rsi: 62, rank: 1 },
+      { etf: 'XLC',  sector: 'Communication Services', perf_w:  2.8, perf_1m:  6.5, rsi: 58, rank: 2 },
+      { etf: 'XLY',  sector: 'Consumer Cyclical',      perf_w:  2.1, perf_1m:  5.2, rsi: 55, rank: 3 },
+      { etf: 'XLF',  sector: 'Financial Services',     perf_w:  1.4, perf_1m:  4.8, rsi: 54, rank: 4 },
+      { etf: 'XLV',  sector: 'Healthcare',             perf_w:  0.9, perf_1m:  2.1, rsi: 51, rank: 5 },
+      { etf: 'XLI',  sector: 'Industrials',            perf_w:  0.3, perf_1m:  1.8, rsi: 49, rank: 6 },
+      { etf: 'XLB',  sector: 'Basic Materials',        perf_w: -0.2, perf_1m:  0.5, rsi: 47, rank: 7 },
+      { etf: 'XLP',  sector: 'Consumer Defensive',     perf_w: -0.8, perf_1m: -0.2, rsi: 45, rank: 8 },
+      { etf: 'XLRE', sector: 'Real Estate',            perf_w: -1.2, perf_1m: -1.5, rsi: 43, rank: 9 },
+      { etf: 'XLU',  sector: 'Utilities',              perf_w: -1.8, perf_1m: -2.1, rsi: 41, rank: 10 },
+      { etf: 'XLE',  sector: 'Energy',                 perf_w: -2.4, perf_1m: -4.8, rsi: 38, rank: 11 },
+    ];
+    console.log('✓ Sector scan: mock data');
+    return mock;
+  }
+
+  const etfTickers = Object.keys(SECTOR_ETF_MAP).map(t => `AMEX:${t}`);
+
+  const payload = {
+    columns: ['ticker-view', 'close', 'Perf.W', 'Perf.1M', 'RSI', 'relative_volume_10d_calc'],
+    // d[0]=ticker-view  d[1]=close  d[2]=Perf.W  d[3]=Perf.1M  d[4]=RSI  d[5]=rel_vol
+    symbols: { tickers: etfTickers },
+    sort: { sortBy: 'Perf.W', sortOrder: 'desc' },
+    range: [0, 20],
+    options: { lang: 'en' },
+    ignore_unknown_fields: false
+  };
+
+  try {
+    const response = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠ Sector scan failed (HTTP ${response.status}) — no sector filter applied`);
+      return null;
+    }
+
+    const json = await response.json();
+    const rows = json.data || [];
+
+    const ranked = rows
+      .map(row => {
+        const etf = row.s.split(':')[1];
+        const d = row.d;
+        return {
+          etf,
+          sector:  SECTOR_ETF_MAP[etf] || etf,
+          close:   d[1]  ?? null,
+          perf_w:  d[2]  ?? null,
+          perf_1m: d[3]  ?? null,
+          rsi:     d[4]  ?? null,
+          rel_vol: d[5]  ?? null,
+        };
+      })
+      .filter(s => s.perf_w != null)
+      .sort((a, b) => b.perf_w - a.perf_w)
+      .map((s, i) => ({ ...s, rank: i + 1 }));
+
+    console.log(`✓ Sector scan: ${ranked.length} sectors ranked`);
+    return ranked.length > 0 ? ranked : null;
+  } catch (err) {
+    console.warn(`⚠ Sector scan error: ${err.message} — no sector filter applied`);
+    return null;
+  }
 }
 
 /**
@@ -373,9 +468,19 @@ function scoreConfluence(stock) {
 }
 
 /**
- * Consolidate and deduplicate results
+ * Consolidate and deduplicate results.
+ * topSectors: array of { sector, rank } objects — stocks not in this set are dropped.
+ * Pass null to skip sector filtering.
  */
-function consolidateResults(allScans) {
+function consolidateResults(allScans, topSectors) {
+  const topSectorSet = topSectors
+    ? new Set(topSectors.map(s => s.sector.toLowerCase()))
+    : null;
+  const sectorRankMap = topSectors
+    ? Object.fromEntries(topSectors.map(s => [s.sector.toLowerCase(), s.rank]))
+    : {};
+
+  let totalRows = 0, filteredRows = 0;
   const consolidated = {};
 
   for (const { scanKey, data } of allScans) {
@@ -383,25 +488,39 @@ function consolidateResults(allScans) {
       const parsed = parseRow(row, scanKey);
       const ticker = parsed.ticker;
 
-      // Skip stocks with missing critical data (only close price is required)
       if (parsed.close == null) continue;
+      totalRows++;
+
+      // Sector filter — exclude stocks whose sector is known but not in top set
+      if (topSectorSet && parsed.sector) {
+        if (!topSectorSet.has(parsed.sector.toLowerCase())) {
+          filteredRows++;
+          continue;
+        }
+      }
 
       if (!consolidated[ticker]) {
         consolidated[ticker] = {
           ...parsed,
           found_in: [],
-          score: 0
+          score: 0,
+          sector_rank: parsed.sector ? (sectorRankMap[parsed.sector.toLowerCase()] ?? null) : null
         };
       } else {
-        // Update with latest data if available
-        if (!consolidated[ticker].sector && parsed.sector) consolidated[ticker].sector = parsed.sector;
+        if (!consolidated[ticker].sector && parsed.sector) {
+          consolidated[ticker].sector = parsed.sector;
+          consolidated[ticker].sector_rank = sectorRankMap[parsed.sector.toLowerCase()] ?? null;
+        }
       }
 
       consolidated[ticker].found_in.push(scanKey);
     }
   }
 
-  // Score each stock
+  if (topSectorSet && filteredRows > 0) {
+    console.log(`  Sector filter: excluded ${filteredRows} of ${totalRows + filteredRows} stocks not in top ${TOP_SECTORS_COUNT} sectors`);
+  }
+
   for (const ticker in consolidated) {
     consolidated[ticker].score = scoreConfluence(consolidated[ticker]);
   }
@@ -456,9 +575,12 @@ function formatStockLine(ticker, stock, metrics) {
   const extraFlags = (stock.flags || []).filter(f => f !== 'ADR').join(' ');
   const catalysts  = (stock.catalysts || []).join(' ') || '-';
   const scans      = stock.found_in.join(', ');
+  const sectorStr  = stock.sector
+    ? ` | ${stock.sector}${stock.sector_rank != null ? ` #${stock.sector_rank}` : ''}`
+    : '';
 
   return [
-    `[${ticker}${adrTag}] — ${metrics.verdict} (${stock.score} pts) | ${scans}${extraFlags ? ' | ' + extraFlags : ''}`,
+    `[${ticker}${adrTag}] — ${metrics.verdict} (${stock.score} pts) | ${scans}${extraFlags ? ' | ' + extraFlags : ''}${sectorStr}`,
     `  $${n(stock.close, 2)} | Stop $${n(metrics.stop, 2)}(-3%) | T1 $${n(metrics.t1, 2)}(+7%) | RSI ${n(stock.rsi)} | MACD ${metrics.macdStatus} | Vol× ${n(stock.rel_vol_10d, 2)} | Week ${n(stock.perf_w, 1)}% | ${cap(stock.market_cap)} | ${catalysts}`
   ].join('\n');
 }
@@ -466,9 +588,25 @@ function formatStockLine(ticker, stock, metrics) {
 /**
  * Format and display results
  */
-function displayResults(consolidated) {
+function displayResults(consolidated, sectorRankings) {
   const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
-  
+
+  // Display sector rankings header
+  if (sectorRankings && sectorRankings.length > 0) {
+    const top  = sectorRankings.slice(0, TOP_SECTORS_COUNT);
+    const rest = sectorRankings.slice(TOP_SECTORS_COUNT);
+    const pct  = (v) => v != null ? (v >= 0 ? '+' : '') + v.toFixed(1) + '%' : 'N/A';
+
+    console.log('SECTOR RANKINGS (weekly ETF momentum):');
+    top.forEach(s => {
+      console.log(`  #${s.rank} ${s.sector.padEnd(25)} (${s.etf.padEnd(4)})  W ${pct(s.perf_w).padStart(7)}  M ${pct(s.perf_1m).padStart(7)}  RSI ${s.rsi != null ? s.rsi.toFixed(0) : 'N/A'} ← SELECTED`);
+    });
+    if (rest.length > 0) {
+      console.log(`  Not selected: ${rest.map(s => `${s.sector} (${pct(s.perf_w)}W)`).join(', ')}`);
+    }
+    console.log('');
+  }
+
   // Separate by verdict and sort
   const multiScanHits = [];
   const tradeList = [];
@@ -536,17 +674,20 @@ function displayResults(consolidated) {
 /**
  * Save results to JSON
  */
-async function saveResults(consolidated, categories) {
+async function saveResults(consolidated, categories, sectorRankings) {
   const timestamp = new Date().toISOString();
-  
+
   const output = {
     timestamp,
     mode: USE_MOCK ? 'mock' : 'live',
+    sector_rankings: sectorRankings || [],
+    top_sectors: sectorRankings ? sectorRankings.slice(0, TOP_SECTORS_COUNT) : [],
     summary: {
       total_candidates: Object.keys(consolidated).length,
       multi_scan_hits: categories.multiScanHits.length,
       trade_candidates: categories.multiScanHits.filter(h => h.metrics.verdict === 'TRADE').length + categories.tradeList.length,
-      watch_candidates: categories.multiScanHits.filter(h => h.metrics.verdict === 'WATCH').length + categories.watchList.length
+      watch_candidates: categories.multiScanHits.filter(h => h.metrics.verdict === 'WATCH').length + categories.watchList.length,
+      top_sector_count: TOP_SECTORS_COUNT
     },
     scans: Object.entries(SCANS).map(([key, scan]) => ({
       id: key,
@@ -559,6 +700,7 @@ async function saveResults(consolidated, categories) {
         score: stock.score,
         verdict: metrics.verdict,
         found_in: stock.found_in,
+        sector_rank: stock.sector_rank ?? null,
         price: stock.close,
         rsi: stock.rsi,
         rsi_weekly: stock.rsi_weekly,
@@ -670,7 +812,17 @@ async function main() {
   }
 
   try {
-    // Run all 4 scans in parallel
+    // Step 1: Rank sectors by ETF momentum
+    console.log('Step 1/2: Ranking sectors by weekly ETF momentum...\n');
+    const sectorRankings = await scanSectors();
+    const topSectors = sectorRankings ? sectorRankings.slice(0, TOP_SECTORS_COUNT) : null;
+
+    if (topSectors) {
+      console.log(`  Focusing on: ${topSectors.map(s => `${s.sector} (${s.etf})`).join(', ')}\n`);
+    }
+
+    // Step 2: Run all 4 stock scans in parallel
+    console.log('Step 2/2: Running stock scans...\n');
     const allScans = await Promise.all([
       runScan('breakout'),
       runScan('pullback'),
@@ -680,14 +832,14 @@ async function main() {
 
     console.log('\n📈 Consolidating & scoring...\n');
 
-    // Consolidate and deduplicate
-    const consolidated = consolidateResults(allScans);
+    // Consolidate, filter to top sectors, and deduplicate
+    const consolidated = consolidateResults(allScans, topSectors);
 
     // Display formatted results
-    const categories = displayResults(consolidated);
+    const categories = displayResults(consolidated, sectorRankings);
 
     // Save to JSON
-    await saveResults(consolidated, categories);
+    await saveResults(consolidated, categories, sectorRankings);
 
     // Upload to scanner-mcp Worker (if configured)
     const savedData = require('./scanner-results.json');
